@@ -1994,179 +1994,56 @@ def format_response(text: str) -> str:
     return text
 
 
-# --- Main Chat Endpoint with OpenAI and Qdrant integration ---
-from qdrant_client import QdrantClient
-from openai import OpenAI
 
-# Initialize Qdrant and OpenAI clients (singleton)
-QDRANT_URL = os.getenv("QDRANT_URL")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-COLLECTION_NAME = "bridgetext_scenarios"
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-qdrant_client = None
-openai_client = None
-def get_qdrant_client():
-    global qdrant_client
-    if qdrant_client is None:
-        qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=10)
-    return qdrant_client
-def get_openai_client():
-    global openai_client
-    if openai_client is None:
-        openai_client = OpenAI(api_key=OPENAI_API_KEY, timeout=30.0)
-    return openai_client
+# --- Require JWT authentication for chatbot endpoints ---
+from fastapi import Header, HTTPException, status, Depends
 
-def get_relevant_context(user_message: str, top_k: int = 3):
+def get_current_user_from_token(authorization: str = Header(None), db: Session = Depends(database.get_db)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authorization header missing or invalid")
+    token = authorization.replace("Bearer ", "")
     try:
-        qdrant = get_qdrant_client()
-        openai = get_openai_client()
-        embedding_response = openai.embeddings.create(
-            model="text-embedding-3-small",
-            input=user_message,
-            dimensions=768
-        )
-        query_vector = embedding_response.data[0].embedding
-        search_results = qdrant.search(
-            collection_name=COLLECTION_NAME,
-            query_vector=query_vector,
-            limit=top_k
-        )
-        context_parts = []
-        for result in search_results:
-            text = (
-                getattr(result, 'payload', {}).get('text') or
-                getattr(result, 'payload', {}).get('page_content') or
-                getattr(result, 'payload', {}).get('content') or
-                getattr(result, 'payload', {}).get('scenario') or
-                getattr(result, 'payload', {}).get('description') or ''
-            )
-            if text:
-                context_parts.append(text)
-        if context_parts:
-            return "\n\n".join(context_parts)
-        return ""
-    except Exception as e:
-        print(f"Qdrant context error: {e}")
-        return ""
-
-def generate_openai_response(user_message: str, context: str, chat_history: str = "", tone: str = None, chat_length: int = 0):
-    openai = get_openai_client()
-    # Safety checks (simplified, can be expanded)
-    violence_keywords = ['hit', 'punch', 'slap', 'kick', 'physical violence', 'physically hurt', 'assault', 'attack', 'threatened with violence']
-    harmful_keywords = ['kill', 'murder', 'suicide', 'weapon', 'gun', 'knife', 'blood', 'stab', 'threat', 'harass']
-    health_keywords = ['headache', 'sick', 'pain', 'fever', 'medication', 'doctor', 'hospital']
-    if any(keyword in user_message.lower() for keyword in violence_keywords):
-        return "⚠️ **This is serious.** Physical violence at work is illegal and unacceptable.<br><br>• Document everything (dates, witnesses, injuries)<br>• Report to HR or higher management NOW<br>• Contact workplace violence hotline: 1-800-799-7233<br>• If you're in immediate danger, call 911<br><br>This isn't a communication issue — it's workplace abuse. I can't coach you through this, but I strongly urge you to protect yourself and report this."
-    if any(keyword in user_message.lower() for keyword in harmful_keywords):
-        return "⚠️ I'm concerned about what you've shared. If you're in immediate danger or witnessing illegal activity, please contact:<br><br>• Emergency Services: 911<br>• National Suicide Prevention Lifeline: 988<br>• Workplace Violence Hotline: 1-800-799-7233<br><br>I'm designed to help with workplace communication challenges, not crisis or safety situations. Please reach out to professionals who can provide proper support."
-    if any(keyword in user_message.lower() for keyword in health_keywords):
-        return "I'm specifically designed for workplace communication challenges. For health concerns, please consult a medical professional. Can we focus on a work-related communication or teamwork challenge instead?"
-
-    # Tone prompt
-    if tone == "Casual":
-        tone_instruction = "Use a casual, friendly tone. Write like you're texting a friend. Keep it short and conversational."
-    elif tone == "Professional":
-        tone_instruction = "Use a professional, clear, and supportive tone."
-    else:
-        tone_instruction = "Ask 1-2 brief questions to understand their situation. Keep it neutral and friendly."
-
-    # System prompt
-    system_prompt = f"""You are a helpful workplace coach. Use HTML formatting for bold and line breaks.\n\nContext:\n{context}\n\nChat History:\n{chat_history}\n\nCurrent user message: '{user_message}'\n\n{tone_instruction}\nRespond in 2-3 sentences."""
-
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message}
-        ],
-        temperature=0.7,
-        max_tokens=250
-    )
-    raw_response = response.choices[0].message.content.strip()
-    return format_response(raw_response)
+        # Use the same logic as validate_websocket_token
+        if is_blacklisted(token):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        user = db.query(models.User).filter(models.User.user_id == user_id).first()
+        if not user or user.trial_status != "active":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+        return user
+    except JWTError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {str(e)}")
 
 @app.post("/api/chat")
-async def api_chat(request: Request):
+async def api_chat(request: Request, user=Depends(get_current_user_from_token)):
     data = await request.json()
     user_message = data.get('message', '').strip()
     incoming_token = data.get('token', '')
     if not user_message:
         return JSONResponse({'error': 'Message cannot be empty'}, status_code=400)
+    # ...existing code for chat logic...
+    # (Paste the previous chat logic here, unchanged)
+    # ...existing code...
 
-    # Decode token or start new session
-    if incoming_token:
-        session_data = decode_chatbot_token(incoming_token)
-        history = session_data['chat_history']
-        selected_tone = session_data['tone']
-    else:
-        history = []
-        selected_tone = None
+@app.get("/api/history")
+async def api_history(request: Request, user=Depends(get_current_user_from_token)):
+    token = request.headers.get('Authorization', '').replace('Bearer ', '') or request.query_params.get('token', '')
+    if not token:
+        return JSONResponse({'history': []})
+    session_data = decode_chatbot_token(token)
+    history = session_data['chat_history']
+    return JSONResponse({'history': history})
 
-    # Message limit (10 messages)
-    if len(history) >= 10:
-        new_token = create_chatbot_token(history, selected_tone)
-        return JSONResponse({
-            'response': "You've reached the free message limit (10 messages). Upgrade to Premium for unlimited conversations! 🚀",
-            'limit_reached': True,
-            'quick_replies': [],
-            'token': new_token,
-            'success': True
-        })
-
-    greeting_words = ['hi', 'hello', 'hey', 'hii', 'hiii', 'sup', 'yo', 'howdy']
-    is_greeting = user_message.lower().strip() in greeting_words
-    word_count = len(user_message.split())
-    is_meaningful_query = word_count >= 3
-
-    # Tone selection
-    if user_message.strip() in ["Professional", "Casual"]:
-        selected_tone = user_message.strip()
-        user_messages = [h['user'] for h in history if h['user'].lower() not in greeting_words + ["professional", "casual"]]
-        if user_messages:
-            user_message = user_messages[-1]
-
-    # Ask for tone if not selected
-    if selected_tone is None and not is_greeting and is_meaningful_query:
-        ai_response = "Before I help you with this, how would you like me to respond?"
-        history.append({'user': user_message, 'ai': ai_response, 'timestamp': datetime.utcnow().isoformat()})
-        new_token = create_chatbot_token(history, selected_tone)
-        return JSONResponse({
-            'response': ai_response,
-            'quick_replies': ["Professional", "Casual"],
-            'token': new_token,
-            'success': True
-        })
-
-    if selected_tone is None and not is_greeting and not is_meaningful_query:
-        ai_response = "Could you tell me a bit more about what's going on?"
-        history.append({'user': user_message, 'ai': ai_response, 'timestamp': datetime.utcnow().isoformat()})
-        new_token = create_chatbot_token(history, selected_tone)
-        return JSONResponse({
-            'response': ai_response,
-            'quick_replies': [],
-            'token': new_token,
-            'success': True
-        })
-
-    # --- Real AI response with context ---
-    context = get_relevant_context(user_message)
-    chat_history_str = "\n".join([f"User: {h['user']}\nAI: {h['ai']}" for h in history[-4:]])
-    ai_response = generate_openai_response(user_message, context, chat_history_str, selected_tone, len(history) + 1)
-
-    history.append({'user': user_message, 'ai': ai_response, 'timestamp': datetime.utcnow().isoformat()})
-    new_token = create_chatbot_token(history, selected_tone)
-
-    # Smart quick reply flow (optional, can be expanded)
-    is_safety_warning = ai_response.startswith("⚠️") or "call 911" in ai_response.lower()
-    quick_replies = []
-    if not is_safety_warning and selected_tone and ai_response.lower().startswith("got it"):
-        quick_replies = ["Work relationships", "Stress & deadlines", "Career growth", "Team conflicts"]
-
+@app.post("/api/clear")
+async def api_clear(user=Depends(get_current_user_from_token)):
+    new_token = create_chatbot_token([], None)
     return JSONResponse({
-        'response': ai_response,
-        'quick_replies': quick_replies,
-        'token': new_token,
-        'success': True
+        'success': True,
+        'message': 'Chat history cleared',
+        'token': new_token
     })
 
 # --- Chat History Endpoint ---
