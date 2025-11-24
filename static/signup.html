@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sign Up - Manager Voice Chat</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --secondary: #7209b7;
+            --success: #06d6a0;
+            --danger: #ef476f;
+            --warning: #ffd166;
+            --dark: #1a1d2e;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --gray-light: #e9ecef;
+            --border-radius: 16px;
+            --shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            --transition: all 0.3s ease;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ec 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--dark);
+        }
+        
+        .auth-container {
+            width: 100%;
+            max-width: 450px;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .auth-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--secondary), var(--primary));
+        }
+        
+        .auth-header {
+            background: linear-gradient(135deg, #1a1d2e, #2d3748);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .auth-logo {
+            font-size: 42px;
+            margin-bottom: 15px;
+            color: white;
+        }
+        
+        .auth-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .auth-subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+            color: #cbd5e0;
+        }
+        
+        .auth-form {
+            padding: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--dark);
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--gray-light);
+            border-radius: 12px;
+            font-size: 16px;
+            transition: var(--transition);
+            background: var(--light);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        .terms-agreement {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .terms-agreement input {
+            margin-top: 4px;
+        }
+        
+        .terms-agreement label {
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .terms-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .terms-link:hover {
+            color: var(--primary-dark);
+        }
+        
+        .auth-btn {
+            width: 100%;
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .auth-btn:hover {
+            background: #05c291;
+            transform: translateY(-2px);
+        }
+        
+        .auth-btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .auth-divider {
+            text-align: center;
+            margin: 25px 0;
+            position: relative;
+            color: var(--gray);
+        }
+        
+        .auth-divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: var(--gray-light);
+        }
+        
+        .auth-divider span {
+            background: white;
+            padding: 0 15px;
+            position: relative;
+        }
+        
+        .social-login {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .social-btn {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid var(--gray-light);
+            border-radius: 12px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-weight: 600;
+        }
+        
+        .social-btn:hover {
+            background: var(--light);
+            transform: translateY(-2px);
+        }
+        
+        .auth-footer {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid var(--gray-light);
+            color: var(--gray);
+        }
+        
+        .auth-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+        
+        .auth-link:hover {
+            color: var(--primary-dark);
+        }
+        
+        @media (max-width: 500px) {
+            .auth-container {
+                max-width: 100%;
+            }
+            
+            .auth-header {
+                padding: 25px 20px;
+            }
+            
+            .auth-form {
+                padding: 25px 20px;
+            }
+            
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+            
+            .social-login {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <i class="fas fa-user-tie"></i>
+            </div>
+            <h1 class="auth-title">Create Account</h1>
+            <p class="auth-subtitle">Start practicing with AI managers</p>
+        </div>
+        
+        <form class="auth-form" id="signupForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="firstName">First Name</label>
+                    <input type="text" id="firstName" class="form-input" placeholder="First name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="lastName">Last Name</label>
+                    <input type="text" id="lastName" class="form-input" placeholder="Last name" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="email">Email Address</label>
+                <input type="email" id="email" class="form-input" placeholder="Enter your email" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <input type="password" id="password" class="form-input" placeholder="Create a strong password" required>
+                <div id="passwordStrength" style="margin-top: 8px; display: none;">
+                    <div style="height: 4px; background: #e9ecef; border-radius: 2px; overflow: hidden;">
+                        <div id="strengthBar" style="height: 100%; width: 0%; transition: all 0.3s;"></div>
+                    </div>
+                    <small id="strengthText" style="font-size: 12px; display: block; margin-top: 4px;"></small>
+                </div>
+                <small style="color: #6c757d; font-size: 12px; display: block; margin-top: 4px;">
+                    Must be 8+ characters with uppercase, lowercase, number, and special character
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" class="form-input" placeholder="Confirm your password" required>
+            </div>
+            
+            <div class="terms-agreement">
+                <input type="checkbox" id="terms" required>
+                <label for="terms">I agree to the <a href="#" class="terms-link">Terms of Service</a> and <a href="#" class="terms-link">Privacy Policy</a></label>
+            </div>
+            
+            <button type="submit" class="auth-btn" id="signupBtn">
+                <i class="fas fa-user-plus"></i>
+                Create Account
+            </button>
+            
+            <div class="auth-divider">
+                <span>Or sign up with</span>
+            </div>
+            
+            <div class="social-login">
+                <button type="button" class="social-btn">
+                    <i class="fab fa-google" style="color: #DB4437;"></i>
+                    Google
+                </button>
+                <button type="button" class="social-btn">
+                    <i class="fab fa-microsoft" style="color: #0078D4;"></i>
+                    Microsoft
+                </button>
+            </div>
+            
+            <div class="auth-footer">
+                <p>Already have an account? <a href="/login.html" class="auth-link">Sign in</a></p>
+                <p style="margin-top: 10px;">Business account? <a href="/business-signup.html" class="auth-link">Sign up here</a></p>
+            </div>
+        </form>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        // Wait for DOM to be fully loaded
+        // Password validation function
+        function validatePassword(password) {
+            const errors = [];
+            
+            if (password.length < 8) {
+                errors.push('Password must be at least 8 characters');
+            }
+            
+            if (!/[A-Z]/.test(password)) {
+                errors.push('Password must contain at least one uppercase letter');
+            }
+            
+            if (!/[a-z]/.test(password)) {
+                errors.push('Password must contain at least one lowercase letter');
+            }
+            
+            if (!/\d/.test(password)) {
+                errors.push('Password must contain at least one number');
+            }
+            
+            if (!/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/;~`]/.test(password)) {
+                errors.push('Password must contain at least one special character (!@#$%^&*...)');
+            }
+            
+            // Check for common weak passwords
+            const weakPasswords = ['password', 'password123', '12345678', 'qwerty123', 'admin123'];
+            if (weakPasswords.includes(password.toLowerCase())) {
+                errors.push('Password is too common. Please choose a stronger password');
+            }
+            
+            return errors;
+        }
+        
+        // Password strength checker
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            const strengthBar = document.getElementById('strengthBar');
+            const strengthText = document.getElementById('strengthText');
+            const strengthDiv = document.getElementById('passwordStrength');
+            
+            if (!password) {
+                strengthDiv.style.display = 'none';
+                return;
+            }
+            
+            strengthDiv.style.display = 'block';
+            
+            // Length check
+            if (password.length >= 8) strength += 20;
+            if (password.length >= 12) strength += 10;
+            
+            // Character variety
+            if (/[a-z]/.test(password)) strength += 20;
+            if (/[A-Z]/.test(password)) strength += 20;
+            if (/\d/.test(password)) strength += 15;
+            if (/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/;~`]/.test(password)) strength += 15;
+            
+            // Update bar
+            strengthBar.style.width = strength + '%';
+            
+            if (strength < 40) {
+                strengthBar.style.background = '#ef476f';
+                strengthText.textContent = 'Weak password';
+                strengthText.style.color = '#ef476f';
+            } else if (strength < 70) {
+                strengthBar.style.background = '#ffd166';
+                strengthText.textContent = 'Medium password';
+                strengthText.style.color = '#b88c00';
+            } else {
+                strengthBar.style.background = '#06d6a0';
+                strengthText.textContent = 'Strong password';
+                strengthText.style.color = '#06d6a0';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const signupForm = document.getElementById('signupForm');
+            const signupBtn = document.getElementById('signupBtn');
+            const passwordInput = document.getElementById('password');
+            
+            if (!signupForm || !signupBtn) {
+                console.error('Required elements not found');
+                return;
+            }
+            
+            // Add password strength checker
+            if (passwordInput) {
+                passwordInput.addEventListener('input', function() {
+                    checkPasswordStrength(this.value);
+                });
+            }
+            
+            signupForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const firstName = document.getElementById('firstName').value;
+                const lastName = document.getElementById('lastName').value;
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const terms = document.getElementById('terms').checked;
+                
+                if (!firstName || !lastName || !email || !password || !confirmPassword) {
+                    alert('Please fill in all fields');
+                    return;
+                }
+                
+                // Validate password strength
+                const passwordErrors = validatePassword(password);
+                if (passwordErrors.length > 0) {
+                    alert('Password requirements:\n\n' + passwordErrors.join('\n'));
+                    return;
+                }
+                
+                if (password !== confirmPassword) {
+                    alert('Passwords do not match');
+                    return;
+                }
+                
+                if (!terms) {
+                    alert('Please agree to the Terms of Service and Privacy Policy');
+                    return;
+                }
+                
+                // Disable button and show loading state
+                signupBtn.disabled = true;
+                signupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+                
+                try {
+                    const response = await fetch('/auth/signup', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: email,
+                            name: `${firstName} ${lastName}`,
+                            password: password
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Store the token
+                        localStorage.setItem('access_token', data.access_token);
+                        
+                        // Show success message
+                        alert('Account created successfully! Redirecting...');
+                        
+                        // Redirect to main app
+                        window.location.href = '/static/index.html';
+                    } else {
+                        // Extract error message properly
+                        let errorMsg = 'Signup failed';
+                        if (data.detail) {
+                            errorMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                        }
+                        alert(errorMsg);
+                    }
+                } catch (error) {
+                    console.error('Signup error:', error);
+                    alert('Signup failed. Please try again.');
+                } finally {
+                    // Reset button state
+                    signupBtn.disabled = false;
+                    signupBtn.innerHTML = '<i class="fas fa-user-plus"></i> Create Account';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

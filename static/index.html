@@ -1,0 +1,2442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Manager Voice Chat</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.7/dist/bundle.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --secondary: #7209b7;
+            --success: #06d6a0;
+            --danger: #ef476f;
+            --warning: #ffd166;
+            --dark: #1a1d2e;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --gray-light: #e9ecef;
+            --border-radius: 16px;
+            --shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            --transition: all 0.3s ease;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ec 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--dark);
+            position: relative;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 1200px;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 1fr;
+            height: 90vh;
+            max-height: 800px;
+            position: relative;
+            transition: var(--transition);
+        }
+
+        .main-container.history-open {
+            grid-template-columns: 1fr 380px;
+        }
+
+        .call-panel {
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            background: linear-gradient(135deg, #1a1d2e, #2d3748);
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .call-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 0;
+            position: relative;
+        }
+
+        .manager-display {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #2d3748, #1a1d2e);
+            padding: 40px;
+        }
+
+        .manager-avatar-large {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            margin-bottom: 25px;
+            color: white;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+            border: 4px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .manager-info {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .manager-name-large {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #fff, #e2e8f0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .manager-role-large {
+            font-size: 18px;
+            opacity: 0.9;
+            color: #cbd5e0;
+        }
+
+        .manager-description {
+            font-size: 16px;
+            color: #a0aec0;
+            max-width: 400px;
+            line-height: 1.5;
+            margin-top: 10px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.thinking {
+            background: var(--secondary);
+        }
+
+        .status-dot.processing {
+            background: var(--primary);
+        }
+
+        .status-dot.listening {
+            background: var(--success);
+        }
+
+        .status-dot.speaking {
+            background: var(--warning);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .config-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 20px;
+            border-radius: 20px;
+            z-index: 15;
+            color: white;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .config-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .config-label {
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .config-group select,
+        .config-group textarea {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .config-group textarea {
+            resize: vertical;
+            min-height: 80px;
+            cursor: text;
+            font-family: inherit;
+        }
+
+        .config-group select:hover,
+        .config-group textarea:focus {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .config-group select option {
+            background: var(--dark);
+            color: white;
+        }
+
+        .config-group textarea::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .config-group.full-width textarea {
+            width: 100%;
+            min-height: 100px;
+            box-sizing: border-box;
+        }
+
+        .apply-config-btn {
+            grid-column: 1 / -1;
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .apply-config-btn:hover {
+            background: #05c291;
+            transform: translateY(-2px);
+        }
+
+        .toggle-config-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            color: white;
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 20;
+            transition: var(--transition);
+            font-size: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .toggle-config-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+            transform: scale(1.1);
+        }
+
+        .config-panel.hidden {
+            display: none;
+        }
+
+        .conversation-panel {
+            background: white;
+            border-top: 1px solid var(--gray-light);
+            padding: 20px 35px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .conversation-item {
+            margin-bottom: 15px;
+        }
+
+        .conversation-label {
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .conversation-label.user {
+            color: var(--primary);
+        }
+
+        .conversation-label.assistant {
+            color: var(--secondary);
+        }
+
+        .conversation-label i {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            background: rgba(67, 97, 238, 0.1);
+            color: var(--primary);
+        }
+
+        .conversation-label.assistant i {
+            background: rgba(114, 9, 183, 0.1);
+            color: var(--secondary);
+        }
+
+        .conversation-text {
+            background: var(--light);
+            padding: 12px 15px;
+            border-radius: 10px;
+            line-height: 1.5;
+            font-size: 14px;
+            border: 1px solid var(--gray-light);
+        }
+
+        .streaming-cursor {
+            display: inline-block;
+            width: 3px;
+            height: 16px;
+            background: var(--primary);
+            margin-left: 2px;
+            animation: blink 1s infinite;
+            vertical-align: middle;
+            border-radius: 2px;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .controls-section {
+            background: white;
+            border-top: 1px solid var(--gray-light);
+            padding: 20px 35px;
+            flex-shrink: 0;
+        }
+
+        .controls {
+            text-align: center;
+        }
+
+        .control-btn {
+            padding: 16px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 50%;
+            font-size: 22px;
+            cursor: pointer;
+            transition: var(--transition);
+            color: white;
+            width: 65px;
+            height: 65px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .control-btn:not(:disabled):hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-start {
+            background: var(--success);
+        }
+
+        .btn-stop {
+            background: var(--danger);
+        }
+
+        .btn-reset {
+            background: var(--gray);
+        }
+
+        .status-container {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .status-bar {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--gray-light);
+            color: var(--gray);
+            transition: var(--transition);
+        }
+
+        .status-bar.connected {
+            background: rgba(6, 214, 160, 0.15);
+            color: var(--success);
+        }
+
+        .status-bar.listening {
+            background: rgba(6, 214, 160, 0.15);
+            color: var(--success);
+        }
+
+        .status-bar.processing {
+            background: rgba(67, 97, 238, 0.15);
+            color: var(--primary);
+        }
+
+        .status-bar.thinking {
+            background: rgba(114, 9, 183, 0.15);
+            color: var(--secondary);
+        }
+
+        .status-bar.speaking {
+            background: rgba(255, 209, 102, 0.15);
+            color: #b88c00;
+        }
+
+        .history-panel {
+            background: linear-gradient(135deg, #1a1d2e, #2d3748);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 30px;
+            transition: var(--transition);
+            overflow: hidden;
+            width: 380px;
+        }
+
+        .history-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--secondary), var(--primary));
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .history-title {
+            font-weight: 700;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toggle-history {
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .toggle-history:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        #historyContainer {
+            flex: 1;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .history-msg {
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 14px;
+        }
+
+        .user-msg {
+            border-left: 3px solid var(--primary);
+        }
+
+        .assistant-msg {
+            border-left: 3px solid var(--secondary);
+        }
+
+        .msg-label {
+            font-weight: 700;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .user-msg .msg-label {
+            color: #93c5fd;
+        }
+
+        .assistant-msg .msg-label {
+            color: #c4b5fd;
+        }
+
+        .msg-content {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .empty-history {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 40px 20px;
+        }
+
+        .empty-history i {
+            font-size: 42px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .expand-icon {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(67, 97, 238, 0.3);
+            z-index: 10;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .main-container:not(.history-open) .history-panel {
+            display: none;
+        }
+
+        .main-container.history-open .expand-icon {
+            display: none;
+        }
+
+        #historyContainer::-webkit-scrollbar,
+        .conversation-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #historyContainer::-webkit-scrollbar-track,
+        .conversation-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        #historyContainer::-webkit-scrollbar-thumb,
+        .conversation-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        @media (max-width: 900px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                height: 95vh;
+            }
+
+            .history-panel {
+                display: none;
+            }
+
+            .expand-icon {
+                display: none !important;
+            }
+
+            .manager-display {
+                padding: 20px;
+            }
+
+            .manager-avatar-large {
+                width: 80px;
+                height: 80px;
+                font-size: 32px;
+            }
+
+            .manager-name-large {
+                font-size: 24px;
+            }
+
+            .manager-role-large {
+                font-size: 14px;
+            }
+
+            .manager-description {
+                font-size: 14px;
+            }
+
+            .conversation-panel {
+                padding: 15px 20px;
+                max-height: 150px;
+            }
+
+            .controls-section {
+                padding: 15px 20px;
+            }
+
+            .config-panel {
+                grid-template-columns: 1fr;
+                padding: 15px;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+            }
+        }
+
+        /* Make optgroup headers stand out */
+        select optgroup {
+            background: #111827;
+            /* Slightly darker background */
+            color: #ffd166;
+            /* Yellow accent for category name */
+            font-weight: 700;
+            padding: 4px 8px;
+            font-size: 14px;
+        }
+
+        /* Style the option rows to look uniform */
+        select optgroup option {
+            background: #1f2937;
+            /* Match dropdown dark look */
+            color: #ffffff;
+            padding: 6px 10px;
+        }
+
+        /* Add subtle separator between groups */
+        select optgroup+optgroup::before {
+            content: "";
+            display: block;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            margin: 4px 0;
+        }
+
+        .scenario-context-box {
+            grid-column: 1 / -1;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 14px;
+            padding: 14px 18px;
+            font-size: 14px;
+            color: #f1f5f9;
+            line-height: 1.7;
+            white-space: pre-line;
+            /* show bullets and line breaks */
+            overflow-y: auto;
+            max-height: 280px;
+            transition: all 0.3s ease-in-out;
+            backdrop-filter: blur(6px);
+        }
+
+        .scenario-context-box::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scenario-context-box::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+        }
+
+        /* NEW: User authentication button positioned outside the main container */
+        .user-auth-btn {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+            transition: var(--transition);
+            font-size: 22px;
+            box-shadow: 0 6px 20px rgba(67, 97, 238, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .user-auth-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(67, 97, 238, 0.6);
+        }
+
+        .user-dropdown {
+            position: fixed;
+            top: 95px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 12px;
+            padding: 10px 0;
+            min-width: 200px;
+            z-index: 1001;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+            display: none;
+        }
+
+        .user-dropdown.show {
+            display: block;
+        }
+
+        .user-dropdown-item {
+            padding: 12px 20px;
+            color: var(--dark);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: var(--transition);
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .user-dropdown-item:hover {
+            background: rgba(67, 97, 238, 0.1);
+            color: var(--primary);
+        }
+
+        .user-dropdown-divider {
+            height: 1px;
+            background: var(--gray-light);
+            margin: 5px 0;
+        }
+
+        /* Login prompt for unauthenticated users */
+        .login-prompt {
+            position: fixed;
+            top: 30px;
+            right: 100px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            box-shadow: var(--shadow);
+            font-weight: 600;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 999;
+            border: 1px solid var(--gray-light);
+        }
+
+        .login-prompt i {
+            color: var(--success);
+        }
+
+        @media (max-width: 900px) {
+            .user-auth-btn {
+                top: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+
+            .user-dropdown {
+                top: 80px;
+                right: 20px;
+                min-width: 180px;
+            }
+
+            .login-prompt {
+                top: 20px;
+                right: 80px;
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- User authentication button - NOW OUTSIDE the main container -->
+    <button class="user-auth-btn" id="userAuthBtn" title="Account">
+        <i class="fas fa-user-circle"></i>
+    </button>
+    <span id="loggedInName"
+        style="position: fixed; top: 40px; right: 100px; color: #333; font-weight: 600; display:none;">
+    </span>
+
+    <!-- Login prompt for unauthenticated users -->
+    <div class="login-prompt" id="loginPrompt">
+        <i class="fas fa-info-circle"></i>
+        Sign in to save your progress
+    </div>
+
+    <div class="main-container" id="mainContainer">
+        <div class="call-panel">
+            <div class="content-area">
+                <div class="manager-display">
+                    <button class="toggle-config-btn" id="toggleConfigBtn" title="Toggle Configuration">
+                        <i class="fas fa-cog"></i>
+                    </button>
+
+                    <div class="config-panel hidden" id="configPanel">
+                        <div class="config-group">
+                            <label class="config-label">
+                                <i class="fas fa-user-tie"></i>
+                                Select Manager Personality
+                            </label>
+                            <select id="personalitySelect">
+                                <option value="entj_commander">Priya - The Commander</option>
+                                <option value="istj_operator">Harish - The Operator</option>
+                                <option value="enfp_visionary">Sunita - The Visionary</option>
+                                <option value="esfj_caregiver">Ravi - The Caregiver</option>
+                            </select>
+                        </div>
+
+                        <div class="config-group">
+                            <label class="config-label">
+                                <i class="fas fa-briefcase"></i>
+                                Select Scenario
+                            </label>
+                            <select id="scenarioSelect">
+                                <optgroup label="Core Scenarios">
+                                    <option value="project_crisis">Project Crisis - Behind Schedule</option>
+                                    <option value="performance_review">Performance Review Meeting</option>
+                                    <option value="budget_planning">Budget Planning Session</option>
+                                    <option value="client_escalation">Client Escalation Issue</option>
+                                    <option value="team_conflict">Team Conflict Resolution</option>
+                                </optgroup>
+
+                                <optgroup label="Adaptability">
+                                    <option value="role_shift">The Role Shift - Adapting to New Responsibilities
+                                    </option>
+                                    <option value="sudden_priority_change">The Sudden Priority Change - Shifting
+                                        Direction</option>
+                                    <option value="cross_functional_collaboration">The Cross-Functional Collaboration
+                                    </option>
+                                    <option value="tech_tool_overhaul">The Tech Tool Overhaul</option>
+                                    <option value="ambiguous_brief">The Ambiguous Brief</option>
+                                </optgroup>
+
+                                <optgroup label="Emotional Intelligence">
+                                    <option value="unnoticed_effort">The Unnoticed Effort</option>
+                                    <option value="tense_review">The Tense Review</option>
+                                    <option value="overwhelmed_colleague">The Overwhelmed Colleague</option>
+                                    <option value="feeling_of_exclusion">The Feeling of Exclusion</option>
+                                    <option value="burnout_moment">The Burnout Moment</option>
+                                </optgroup>
+
+                                <optgroup label="Communication">
+                                    <option value="jargon_confusion">The Jargon Confusion</option>
+                                    <option value="tone_misread">The Tone Misread</option>
+                                    <option value="unclear_expectations">The Unclear Expectations</option>
+                                    <option value="misaligned_feedback">The Misaligned Feedback</option>
+                                    <option value="over_communication">The Over-Communication</option>
+                                    <option value="email_escalation">The Email Escalation</option>
+                                    <option value="meeting_misstep">The Meeting Misstep</option>
+                                </optgroup>
+
+                                <option value="custom">Custom Scenario</option>
+                            </select>
+
+                        </div>
+
+                        <div class="config-group full-width" id="customScenarioGroup" style="display: none;">
+                            <label class="config-label">
+                                <i class="fas fa-edit"></i>
+                                Custom Scenario Details
+                            </label>
+                            <textarea id="customScenarioInput"
+                                placeholder="Describe your custom scenario context here... (e.g., time, situation, challenges, goals)"></textarea>
+
+                        </div>
+                        <button class="apply-config-btn" id="applyConfigBtn">
+                            <i class="fas fa-check-circle"></i>
+                            Apply Changes & Reset Conversation
+                        </button>
+                    </div>
+
+                    <div class="manager-avatar-large">
+                        <i class="fas fa-user-tie"></i>
+                    </div>
+
+                    <div class="manager-info">
+                        <div class="manager-name-large" id="managerName">Priya</div>
+                        <div class="manager-role-large" id="managerRole">Strategic Director</div>
+                        <div class="manager-description" id="managerDescription">Assertive, strategic, goal-oriented
+                            leader</div>
+                    </div>
+                    <div id="scenarioContextBox" class="scenario-context-box">
+                        <p>Select a scenario to view its context here...</p>
+                    </div>
+
+                    <div class="status-indicator" id="statusIndicator" style="margin-top: 20px;">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">Ready to connect</span>
+                    </div>
+                </div>
+
+                <div class="conversation-panel">
+                    <div class="conversation-item">
+                        <div class="conversation-label assistant">
+                            <i class="fas fa-user-tie"></i>
+                            <span id="assistantLabel">Priya</span>
+                        </div>
+                        <div class="conversation-text" id="liveResponse">
+                            Ready to respond...
+                        </div>
+                    </div>
+                    <div class="conversation-item">
+                        <div class="conversation-label user">
+                            <i class="fas fa-user"></i>
+                            <span>You</span>
+                        </div>
+                        <div class="conversation-text" id="liveTranscript">
+                            Waiting for your speech...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <div class="controls">
+                    <!-- Login Required Message -->
+                    <div id="loginRequiredMsg" style="display: none; text-align: center; padding: 20px; background: rgba(239, 71, 111, 0.1); border-radius: 12px; margin-bottom: 20px; border: 2px solid var(--danger);">
+                        <i class="fas fa-lock" style="font-size: 32px; color: var(--danger); margin-bottom: 10px;"></i>
+                        <h3 style="color: var(--danger); margin-bottom: 8px;">Login Required</h3>
+                        <p style="color: var(--gray); margin-bottom: 15px;">Please sign in to use the voice coach feature</p>
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <a href="/static/login.html" style="padding: 10px 20px; background: var(--primary); color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                <i class="fas fa-sign-in-alt"></i> Sign In
+                            </a>
+                            <a href="/static/signup.html" style="padding: 10px 20px; background: var(--success); color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                <i class="fas fa-user-plus"></i> Sign Up
+                            </a>
+                        </div>
+                    </div>
+
+                    <button class="control-btn btn-start" id="startBtn" title="Start Listening">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    <button class="control-btn btn-stop" id="stopBtn" title="Stop Listening" disabled>
+                        <i class="fas fa-microphone-slash"></i>
+                    </button>
+                    <button class="control-btn" id="pauseBtn" title="Pause Conversation" style="background: #ffc107;"
+                        disabled>
+                        <i class="fas fa-pause"></i>
+                    </button>
+                    <button class="control-btn btn-reset" id="resetBtn" title="Reset Conversation">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="control-btn btn-stop" id="endCallBtn" title="End Call">
+                        <i class="fas fa-phone-slash"></i>
+                    </button>
+
+
+                    <div class="status-container">
+                        <div class="status-bar" id="statusBar">
+                            <i class="fas fa-circle"></i> Connecting...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-panel" id="historyPanel">
+            <div class="history-header">
+                <div class="history-title">
+                    <i class="fas fa-history"></i>
+                    <span>Conversation History</span>
+                </div>
+                <button class="toggle-history" id="toggleHistory" title="Collapse History">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div id="historyContainer">
+                <div class="empty-history">
+                    <i class="fas fa-comments"></i>
+                    <p>Your conversation history will appear here</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="expand-icon" id="expandHistory" title="Show History">
+            <i class="fas fa-history"></i>
+        </div>
+    </div>
+
+    <!-- User dropdown menu -->
+    <div class="user-dropdown" id="userDropdown">
+        <a href="/static/login.html" class="user-dropdown-item">
+            <i class="fas fa-sign-in-alt"></i>
+            Sign In
+        </a>
+        <a href="/static/signup.html" class="user-dropdown-item">
+            <i class="fas fa-user-plus"></i>
+            Sign Up
+        </a>
+        <div class="user-dropdown-divider"></div>
+        <button class="user-dropdown-item" id="logoutBtn" style="display: none;">
+            <i class="fas fa-sign-out-alt"></i>
+            Sign Out
+        </button>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        // ===== STATE MANAGEMENT =====
+        const state = {
+            ws: null,
+            vad: null,
+            audioContext: null,
+            mediaStream: null,
+            audioChunks: [],
+            isListening: false,
+            isProcessing: false,
+            isPaused: false,
+            conversationActive: true,
+            currentStreamingMessage: null,
+            historyOpen: false,
+            clientId: 'client_' + Math.random().toString(36).substr(2, 9),
+            audioQueue: [],
+            isPlayingAudio: false,
+            currentPersonality: 'entj_commander',
+            currentScenario: 'project_crisis',
+            personalities: {},
+            scenarios: {},
+            customScenario: '',
+
+            ttsAbortController: null,
+            currentAudioSource: null,
+            gainNode: null,                // 🆕 Master gain node for all TTS
+            ttsMasterGainNode: null,       // 🆕 Separate master gain to kill instantly
+            ttsStartTime: 0,
+            playbackInterrupted: false,
+            audioSources: []                    // Flag for interruption
+
+        };
+
+        // ===== DOM ELEMENTS =====
+        const elements = {
+            historyContainer: document.getElementById("historyContainer"),
+            transcriptSpan: document.getElementById("liveTranscript"),
+            responseSpan: document.getElementById("liveResponse"),
+            statusBar: document.getElementById("statusBar"),
+            startBtn: document.getElementById("startBtn"),
+            stopBtn: document.getElementById("stopBtn"),
+            resetBtn: document.getElementById("resetBtn"),
+            historyPanel: document.getElementById("historyPanel"),
+            toggleHistoryBtn: document.getElementById("toggleHistory"),
+            expandHistoryBtn: document.getElementById("expandHistory"),
+            mainContainer: document.getElementById("mainContainer"),
+            personalitySelect: document.getElementById("personalitySelect"),
+            scenarioSelect: document.getElementById("scenarioSelect"),
+            customScenarioInput: document.getElementById("customScenarioInput"),
+            customScenarioGroup: document.getElementById("customScenarioGroup"),
+            applyConfigBtn: document.getElementById("applyConfigBtn"),
+            toggleConfigBtn: document.getElementById("toggleConfigBtn"),
+            configPanel: document.getElementById("configPanel"),
+            managerName: document.getElementById("managerName"),
+            managerRole: document.getElementById("managerRole"),
+            managerDescription: document.getElementById("managerDescription"),
+            assistantLabel: document.getElementById("assistantLabel"),
+            statusIndicator: document.getElementById("statusIndicator"),
+            statusDot: document.getElementById("statusDot"),
+            statusText: document.getElementById("statusText"),
+            userAuthBtn: document.getElementById("userAuthBtn"),
+            userDropdown: document.getElementById("userDropdown"),
+            loginPrompt: document.getElementById("loginPrompt"),
+            logoutBtn: document.getElementById("logoutBtn")
+        };
+
+        // ===== USER AUTHENTICATION =====
+        async function initializeAuth() {
+            // Toggle account dropdown
+            elements.userAuthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                elements.userDropdown.classList.toggle('show');
+            });
+
+            document.addEventListener('click', () => {
+                elements.userDropdown.classList.remove('show');
+            });
+
+            // Check real JWT status
+            try {
+                const res = await authManager.makeAuthenticatedRequest("/auth/status");
+
+                if (res.authenticated) {
+                    elements.logoutBtn.style.display = "block";
+                    elements.loginPrompt.style.display = "none";
+
+                    // show logged in name
+                    elements.userAuthBtn.title = res.user.name;
+                    
+                    // Enable voice coach features
+                    authManager.enableProtectedFeatures();
+                } else {
+                    elements.logoutBtn.style.display = "none";
+                    elements.loginPrompt.style.display = "flex";
+                    
+                    // Disable voice coach features
+                    authManager.disableProtectedFeatures();
+                }
+
+            } catch (error) {
+                elements.logoutBtn.style.display = "none";
+                elements.loginPrompt.style.display = "flex";
+                
+                // Disable voice coach features on error
+                authManager.disableProtectedFeatures();
+            }
+
+            // Logout using REAL JWT logout
+            elements.logoutBtn.addEventListener("click", async () => {
+                await authManager.logout();
+            });
+        }
+
+
+
+        // ===== WEBSOCKET =====
+        function getWebSocketUrl() {
+            const hostname = window.location.hostname;
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const port = (hostname === 'localhost' || hostname === '127.0.0.1') ? ':8000' : '';
+
+            // Get token from authManager (which reads from localStorage)
+            const token = authManager.getToken() || localStorage.getItem('access_token') || '';
+
+            return `${protocol}//${hostname}${port}/ws/${state.clientId}?token=${token}&personality=${state.currentPersonality}&scenario=${state.currentScenario}`;
+        }
+
+        const scenarioData = {
+            project_crisis: `It's Tuesday morning, 9:15 AM.
+• The team is behind schedule on "Project Phoenix."
+• A critical client demo is scheduled for Friday.
+• Two team members are out sick.
+• You're reviewing quarterly performance reports and managing multiple demands.`,
+
+            performance_review: `It's Thursday afternoon, 2:00 PM.
+• You're conducting quarterly performance reviews.
+• The employee has shown inconsistent performance this quarter.
+• There are concerns about missed deadlines and communication gaps.
+• You need to provide constructive feedback while maintaining team morale.`,
+
+            budget_planning: `It's Wednesday morning, 10:30 AM.
+• Annual budget planning session is in progress.
+• Department needs to cut 15% from next year's budget.
+• You need to make strategic decisions about resource allocation.
+• Team is worried about potential layoffs.`,
+
+            client_escalation: `It's Friday afternoon, 4:00 PM.
+• A major client has escalated a critical bug to executive level.
+• The issue is causing downtime for their production system.
+• Your team needs to provide an immediate action plan.
+• Client is threatening to terminate the contract.`,
+
+            team_conflict: `It's Monday morning, 11:00 AM.
+• Two senior developers are in conflict over technical architecture decisions.
+• The conflict is affecting team morale and productivity.
+• Other team members are taking sides.
+• You need to mediate and find a resolution quickly.`,
+
+            role_shift: `It's Monday morning.
+• You've just been moved from design support to client coordination — a faster-paced, higher-pressure role.
+• Your new manager calls for a quick sync to check how you're adjusting to new expectations and responsibilities.
+• The transition is abrupt, and you may feel uncertain about how to perform or fit in with the new team.`,
+
+            sudden_priority_change: `It's Wednesday afternoon.
+• Yesterday's sprint plan was scrapped — leadership reprioritized deliverables overnight.
+• Your manager calls to explain the new focus and reassign tasks immediately.
+• Everything feels rushed, and you must pivot quickly with limited clarity on goals.`,
+
+            cross_functional_collaboration: `It's Thursday morning.
+• You've been added to a joint project with the marketing team, whose communication and pace differ from your usual environment.
+• You're trying to adapt to their workflow and expectations.
+• Your manager checks in to see how the collaboration is going and whether you're finding alignment.`,
+
+            tech_tool_overhaul: `It's Tuesday morning.
+• The company has rolled out a new project management tool.
+• You're struggling to navigate it while others seem to adapt quickly.
+• You've already missed one update because of confusion around notifications.`,
+
+            ambiguous_brief: `It's Friday morning.
+• You've been told to 'own the internal communication refresh' without clear direction or metrics.
+• The manager expects you to take initiative and clarify next steps.
+• You feel hesitant to make assumptions but need to move forward.`,
+
+            unnoticed_effort: `It's Friday evening.
+• The team completed a big presentation, but your extra effort wasn't acknowledged.
+• During a check-in, the manager notices your quiet mood and asks how you're feeling.
+• You may be experiencing disappointment or disengagement.`,
+
+            tense_review: `It's Wednesday afternoon.
+• You received mixed feedback on a deliverable earlier in the day.
+• Since then, you've been withdrawn and quiet in meetings.
+• The manager calls to discuss how you're processing the feedback and what support might help.`,
+
+            overwhelmed_colleague: `It's Monday morning.
+• A teammate snapped during the last meeting, and you tried to mediate.
+• The manager checks in to understand the team's emotional climate and how you're coping.
+• The discussion may touch on empathy, stress, and team boundaries.`,
+
+            feeling_of_exclusion: `It's Tuesday afternoon.
+• A strategy meeting happened without your involvement, even though it impacted your project.
+• You learned about it through a group chat.
+• The manager reaches out after noticing you've been quieter or less engaged.`,
+
+            burnout_moment: `It's Thursday evening.
+• You've been juggling multiple deliverables and start feeling mentally drained.
+• You confide that it's hard to stay focused.
+• The manager must balance empathy with a realistic plan for recovery and productivity.`,
+
+            jargon_confusion: `It's Monday afternoon.
+• The manager used terms like 'circle back on KPIs' and 'realign with sprint objectives.'
+• You didn't understand but didn't ask for clarification.
+• The task is now off-track, and the manager is calling to reset expectations.`,
+
+            tone_misread: `It's Tuesday morning.
+• The manager sent a short message: 'Need that fixed — it's not client-ready.'
+• You read it as angry or dismissive.
+• The follow-up conversation aims to clarify tone and restore comfortable communication.`,
+
+            unclear_expectations: `It's Wednesday afternoon.
+• You submitted a report as you understood it, but the manager expected deeper analysis.
+• Both sides think their instructions were clear.
+• The conversation is about bridging gaps in understanding.`,
+
+            misaligned_feedback: `It's Thursday morning.
+• After your presentation, the manager said, 'Good work, but next time, tighten it up.'
+• You thought it meant minor edits, but they expected major revisions.
+• This call is about clarifying feedback and aligning on expectations.`,
+
+            over_communication: `It's Friday morning.
+• Your updates are long and detailed, sometimes overwhelming busy teammates.
+• The manager calls to discuss concise, impactful communication and time efficiency.`,
+
+            email_escalation: `It's Tuesday afternoon.
+• You cc'd upper management on an issue instead of speaking to your direct manager first.
+• The manager calls to discuss communication channels, trust, and professional boundaries.`,
+
+            meeting_misstep: `It's Friday afternoon.
+• During a virtual client prep call, you unintentionally interrupted multiple times.
+• The manager follows up to discuss active listening and meeting etiquette.`
+        };
+
+        function connectWebSocket() {
+            const wsUrl = getWebSocketUrl();
+            console.log('Connecting to:', wsUrl);
+
+            state.ws = new WebSocket(wsUrl);
+
+            state.ws.onopen = () => {
+                console.log(`✅ WebSocket connected (${state.clientId})`);
+                console.log(`🌐 WebSocket URL: ${wsUrl}`);
+                updateStatus('Connected and ready', 'connected');
+                updateStatusIndicator('Connected', 'connected');
+            };
+
+            state.ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+
+            state.ws.onclose = (event) => {
+                console.log(`🔌 WebSocket disconnected (${state.clientId})`);
+                updateStatus('Disconnected (reconnecting...)', '');
+                updateStatusIndicator('Disconnected', 'disconnected');
+
+                if (event.code !== 1000) {
+                    setTimeout(connectWebSocket, 3000);
+                }
+            };
+
+            state.ws.onerror = (error) => {
+                console.error(`❌ WebSocket error (${state.clientId}):`, error);
+                updateStatus('Connection error', '');
+                updateStatusIndicator('Connection Error', 'error');
+            };
+        }
+
+        function handleMessage(data) {
+            console.log(`📨 Received (${state.clientId}):`, data.type);
+
+            switch (data.type) {
+                case 'config':
+                    state.personalities = data.personalities;
+                    state.scenarios = data.scenarios;
+                    console.log('📋 Received config:', state.personalities, state.scenarios);
+                    break;
+
+                case 'connected':
+                    updateStatus('Ready to start...', 'connected');
+                    updateStatusIndicator('Ready to start', 'connected');
+                    if (data.personality) {
+                        state.currentPersonality = data.personality;
+                        elements.personalitySelect.value = data.personality;
+                        updateManagerDisplay();
+                    }
+                    if (data.scenario) {
+                        state.currentScenario = data.scenario;
+                        elements.scenarioSelect.value = data.scenario;
+                    }
+                    break;
+
+                case 'config_changed':
+                    updateStatus(data.message, 'connected');
+                    updateStatusIndicator('Configuration updated', 'connected');
+                    state.currentPersonality = data.personality;
+                    state.currentScenario = data.scenario;
+                    updateManagerDisplay();
+                    console.log('🎭 Config changed:', data.personality_name, '-', data.scenario_name);
+                    break;
+
+                case 'processing':
+                    updateStatus('🧠 Processing your speech...', 'processing');
+                    updateStatusIndicator('Processing speech', 'processing');
+                    break;
+
+                case 'transcript':
+                    if (data.role === 'user') {
+                        elements.transcriptSpan.textContent = data.text;
+                        addToHistory('user', data.text);
+                    }
+                    break;
+
+                case 'llm_thinking':
+                    updateStatus('💭 Manager is thinking...', 'thinking');
+                    updateStatusIndicator('Manager thinking', 'thinking');
+                    break;
+
+                case 'llm_response_start':
+                    elements.responseSpan.textContent = '';
+                    state.currentStreamingMessage = {
+                        element: elements.responseSpan,
+                        fullText: ''
+                    };
+                    updateStatusIndicator('Manager responding', 'speaking');
+                    break;
+
+                case 'llm_response_token':
+                    if (state.currentStreamingMessage && data.token) {
+                        state.currentStreamingMessage.fullText += data.token;
+                        const existingCursor = state.currentStreamingMessage.element.querySelector('.streaming-cursor');
+                        if (existingCursor) existingCursor.remove();
+
+                        state.currentStreamingMessage.element.innerHTML =
+                            state.currentStreamingMessage.fullText + '<span class="streaming-cursor"></span>';
+                    }
+                    break;
+
+
+                case 'llm_response_end':
+                    if (state.currentStreamingMessage) {
+                        const cursor = state.currentStreamingMessage.element.querySelector('.streaming-cursor');
+                        if (cursor) cursor.remove();
+
+                        state.currentStreamingMessage.element.textContent = state.currentStreamingMessage.fullText;
+                        addToHistory('assistant', state.currentStreamingMessage.fullText);
+                        state.currentStreamingMessage = null;
+                    }
+                    state.conversationActive = data.conversation_active;
+
+                    // Reset processing state
+                    state.isProcessing = false;
+                    console.log('✅ LLM response complete, processing state reset');
+
+                    // Status will be updated when TTS completes and microphone restarts
+                    if (!state.isPlayingAudio && state.conversationActive) {
+                        updateStatus('🎤 Response complete - TTS playing', 'speaking');
+                        updateStatusIndicator('Playing response', 'speaking');
+                    }
+                    break;
+
+                case 'tts_audio_chunk':
+                    console.log(`🎵 Received TTS audio chunk (${state.clientId})`);
+                    if (data.audio_data) {
+                        state.audioQueue.push(data.audio_data);
+                        if (!state.isPlayingAudio) {
+                            playAudioQueue();
+                        }
+                    }
+                    break;
+
+                case 'conversation_ended':
+                    state.conversationActive = false;
+                    updateStatus('Conversation ended', '');
+                    updateStatusIndicator('Conversation ended', 'disconnected');
+                    stopRecording();
+                    showConversationEnded();
+                    break;
+
+                case 'conversation_reset':
+                    clearMessages();
+                    state.conversationActive = true;
+                    updateStatus(data.message, 'connected');
+                    updateStatusIndicator('Conversation reset', 'connected');
+                    break;
+
+                case 'error':
+                    console.error(`❌ Server error (${state.clientId}):`, data.message);
+                    updateStatus(`Error: ${data.message}`, '');
+                    updateStatusIndicator('Error occurred', 'error');
+                    state.isProcessing = false;
+                    break;
+            }
+        }
+
+        // ===== AUDIO PLAYBACK =====
+        async function playAudioQueue() {
+            if (state.isPlayingAudio || state.audioQueue.length === 0) {
+                return;
+            }
+
+            state.isPlayingAudio = true;
+            state.playbackInterrupted = false;
+            state.ttsAbortController = new AbortController();
+
+            console.log(`🔊 Starting playback queue (${state.audioQueue.length} chunks)`);
+
+            if (state.vad && state.isListening) {
+                console.log('🎤 Pausing VAD during TTS playback');
+                state.vad.pause();
+                state.isListening = false;
+                updateButtons();
+                updateStatusIndicator('Playing response...', 'speaking');
+            }
+
+            try {
+                // 🆕 CRITICAL: Main loop with early interruption checks
+                while (state.audioQueue.length > 0 && state.isPlayingAudio) {
+                    // 🆕 CHECK BEFORE POPPING FROM QUEUE
+                    if (state.playbackInterrupted) {
+                        console.log('⏹️ [MAIN LOOP] Interruption detected - clearing queue');
+                        state.audioQueue = [];  // 🆕 Clear all remaining chunks
+                        break;
+                    }
+
+                    const audioDataBase64 = state.audioQueue.shift();
+
+                    // 🆕 CHECK AGAIN BEFORE PROCESSING
+                    if (state.playbackInterrupted) {
+                        console.log('⏹️ [BEFORE CHUNK] Interruption detected - chunk skipped');
+                        break;
+                    }
+
+                    console.log(`🎵 Playing chunk (${state.audioQueue.length} remaining in queue)`);
+                    await playAudioChunk(audioDataBase64);
+
+                    // 🆕 CHECK AFTER EACH CHUNK
+                    if (state.playbackInterrupted) {
+                        console.log('⏹️ [AFTER CHUNK] Interruption detected - stopping queue');
+                        break;
+                    }
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('❌ Audio playback error:', error);
+                }
+            } finally {
+                state.isPlayingAudio = false;
+                state.playbackInterrupted = false;
+
+                console.log(`✅ Audio queue finished or interrupted`);
+
+                if (state.conversationActive && state.vad && !state.isListening && !state.isProcessing) {
+                    console.log('🎤 TTS finished, automatically restarting microphone');
+
+                    setTimeout(async () => {
+                        if (!state.isListening && !state.isProcessing && state.conversationActive) {
+                            try {
+                                await state.vad.start();
+                                state.isListening = true;
+                                updateButtons();
+                                updateStatus('🎤 Listening...', 'listening');
+                                updateStatusIndicator('Listening for speech...', 'listening');
+                                console.log('✅ Microphone automatically restarted');
+                            } catch (error) {
+                                console.error('❌ Failed to restart microphone:', error);
+                            }
+                        }
+                    }, 300);
+                }
+            }
+        }
+        function stopAudioPlayback() {
+            console.log('🛑🛑🛑 AGGRESSIVE STOP: Killing all audio NOW');
+
+            state.playbackInterrupted = true;
+            state.audioQueue = [];
+            state.isPlayingAudio = false;
+
+            // 🆕 KILL ALL ACTIVE SOURCES IMMEDIATELY
+            if (state.audioSources && state.audioSources.length > 0) {
+                console.log(`🛑 Killing ${state.audioSources.length} active audio sources`);
+                state.audioSources.forEach((source, index) => {
+                    try {
+                        source.stop(0);  // Stop immediately at time 0
+                        source.disconnect();
+                        console.log(`🛑 Source ${index} killed and disconnected`);
+                    } catch (e) {
+                        console.log(`Audio source ${index} already stopped:`, e.message);
+                    }
+                });
+                state.audioSources = [];
+            }
+
+            // 🆕 MUTE MASTER GAIN INSTANTLY
+            if (state.ttsMasterGainNode) {
+                try {
+                    state.ttsMasterGainNode.gain.setValueAtTime(0, state.audioContext.currentTime);
+                    console.log('🛑 Master gain muted instantly');
+                } catch (e) {
+                    console.log('Master gain mute failed:', e.message);
+                }
+            }
+
+            // Stop current source
+            if (state.currentAudioSource) {
+                try {
+                    console.log('🛑 Force-stopping current audio source');
+                    state.currentAudioSource.stop(0);
+                    state.currentAudioSource.disconnect();
+                    console.log('🛑 Current source stopped');
+                } catch (e) {
+                    console.log('Current source already stopped:', e.message);
+                }
+                state.currentAudioSource = null;
+            }
+
+            // Close audio context completely
+            if (state.audioContext && state.audioContext.state !== 'closed') {
+                try {
+                    console.log('🛑 Closing audio context');
+                    state.audioContext.close();
+
+                    // Create FRESH audio context
+                    setTimeout(() => {
+                        state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        state.ttsMasterGainNode = state.audioContext.createGain();
+                        state.ttsMasterGainNode.gain.value = 1.0;
+                        state.ttsMasterGainNode.connect(state.audioContext.destination);
+                        console.log('✅ Fresh audio context created with master gain');
+                    }, 50);
+                } catch (e) {
+                    console.log('Context close failed:', e.message);
+                }
+            }
+
+            console.log('✅ All audio killed aggressively');
+        }
+        async function playAudioChunk(audioDataBase64) {
+            // Quick exit if interrupted
+            if (state.playbackInterrupted) {
+                console.log('⏹️ Chunk rejected - already interrupted');
+                return Promise.resolve();
+            }
+
+            if (!state.audioContext) {
+                state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // 🆕 Create master gain on first use
+            if (!state.ttsMasterGainNode) {
+                state.ttsMasterGainNode = state.audioContext.createGain();
+                state.ttsMasterGainNode.gain.value = 1.0;
+                state.ttsMasterGainNode.connect(state.audioContext.destination);
+                console.log('✅ Master gain node created');
+            }
+
+            if (state.audioContext.state === 'suspended') {
+                await state.audioContext.resume();
+            }
+
+            return new Promise((resolve, reject) => {
+                try {
+                    const audioData = Uint8Array.from(atob(audioDataBase64), c => c.charCodeAt(0));
+
+                    if (state.playbackInterrupted) {
+                        console.log('⏹️ Chunk rejected - interrupted before decode');
+                        resolve();
+                        return;
+                    }
+
+                    state.audioContext.decodeAudioData(audioData.buffer, (audioBuffer) => {
+                        // Check interruption AGAIN
+                        if (state.playbackInterrupted) {
+                            console.log('⏹️ Chunk rejected - interrupted before source creation');
+                            resolve();
+                            return;
+                        }
+
+                        const source = state.audioContext.createBufferSource();
+                        source.buffer = audioBuffer;
+
+                        const gainNode = state.audioContext.createGain();
+                        gainNode.gain.value = 1.0;
+
+                        // Connect through master gain node
+                        source.connect(gainNode);
+                        gainNode.connect(state.ttsMasterGainNode);  // 🆕 Connect to master
+
+                        // 🆕 Track this source
+                        state.currentAudioSource = source;
+                        state.audioSources.push(source);
+
+                        console.log(`📊 Chunk added to sources (${state.audioSources.length} active)`);
+
+                        // Check AGAIN right before starting
+                        if (state.playbackInterrupted) {
+                            console.log('⏹️ Chunk rejected - interrupted before start');
+                            source.disconnect();
+                            gainNode.disconnect();
+                            state.audioSources = state.audioSources.filter(s => s !== source);
+                            resolve();
+                            return;
+                        }
+
+                        source.onended = () => {
+                            console.log('✅ Chunk ended naturally');
+                            try {
+                                source.disconnect();
+                                gainNode.disconnect();
+                            } catch (e) {
+                                console.log('Disconnect failed:', e.message);
+                            }
+                            state.audioSources = state.audioSources.filter(s => s !== source);
+                            state.currentAudioSource = null;
+                            resolve();
+                        };
+
+                        source.onerror = (error) => {
+                            console.error('❌ Audio source error:', error);
+                            state.audioSources = state.audioSources.filter(s => s !== source);
+                            state.currentAudioSource = null;
+                            reject(error);
+                        };
+
+                        try {
+                            source.start(0);
+                            state.ttsStartTime = state.audioContext.currentTime;
+                            console.log('▶️ Chunk started playing');
+                        } catch (e) {
+                            console.log('Source start failed:', e.message);
+                            state.audioSources = state.audioSources.filter(s => s !== source);
+                            state.currentAudioSource = null;
+                            resolve();
+                        }
+
+                        // Timeout - stop if takes too long
+                        const timeoutId = setTimeout(() => {
+                            try {
+                                if (source && state.audioContext && state.audioContext.state === 'running') {
+                                    console.log('⏱️ Timeout - stopping source');
+                                    source.stop(0);
+                                }
+                            } catch (e) { }
+                            resolve();
+                        }, (audioBuffer.duration * 1000) + 2000);
+
+                        source.onended = () => {
+                            clearTimeout(timeoutId);
+                            console.log('✅ Chunk finished');
+                            try {
+                                source.disconnect();
+                                gainNode.disconnect();
+                            } catch (e) { }
+                            state.audioSources = state.audioSources.filter(s => s !== source);
+                            state.currentAudioSource = null;
+                            resolve();
+                        };
+
+                    }, (error) => {
+                        console.error('❌ Audio decode error:', error);
+                        reject(error);
+                    });
+
+                } catch (error) {
+                    console.error('❌ Audio chunk error:', error);
+                    reject(error);
+                }
+            });
+        }
+        async function handleAudioProcessing(audioBase64) {
+            console.log('🎵 Processing audio with queuing system...');
+
+            if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+                console.error('❌ WebSocket not connected, cannot send audio');
+                updateStatus('Connection error. Please refresh.', 'error');
+                updateStatusIndicator('Connection Error', 'error');
+                return null;
+            }
+
+            try {
+                const audioMessage = {
+                    type: "audio_data",
+                    audio: audioBase64
+                };
+                console.log('📡 Sending audio data via WebSocket to queue...');
+                state.ws.send(JSON.stringify(audioMessage));
+                console.log('✅ Audio data sent to queue successfully');
+                return true;
+            } catch (err) {
+                console.error('❌ WebSocket send failed:', err);
+                updateStatus('Failed to send audio. Please try again.', 'error');
+                updateStatusIndicator('Send Error', 'error');
+                return false;
+            }
+        }
+
+        // ===== VAD INITIALIZATION =====
+        async function initializeVAD() {
+            try {
+                console.log(`🎙️ Initializing VAD...`);
+
+                state.vad = await vad.MicVAD.new({
+                    onVADMisfire: () => {
+                        console.log('🔥 VAD misfire detected - this might be a short word being filtered');
+                    },
+                    onSpeechStart: () => {
+                        console.log(`🎤 Speech started - beginning recording`);
+                        console.log(`🔊 VAD detected speech start - very sensitive mode active`);
+                        state.audioChunks = [];
+                        updateStatus('🎤 Recording... Keep speaking', 'listening');
+                        updateStatusIndicator('Recording speech...', 'listening');
+                    },
+                    onSpeechEnd: async (audio) => {
+                        const duration = (audio.length / 16000).toFixed(2);
+                        console.log(`🛑 Speech ended, audio length: ${audio.length}, duration: ${duration}s`);
+
+                        // 🔥 CRITICAL: Stop any current audio playback IMMEDIATELY
+                        console.log('🛑 User spoke - STOPPING ALL TTS playback');
+                        stopAudioPlayback();
+
+                        // Clear the response text to prepare for new response
+                        state.currentStreamingMessage = null;
+                        elements.responseSpan.textContent = '';
+
+                        // Reset any processing flags
+                        state.isProcessing = true;
+                        console.log('📤 Sending audio for queued processing...');
+                        updateStatus('🧠 Processing your speech...', 'processing');
+                        updateStatusIndicator('Processing speech...', 'processing');
+
+                        // Convert Float32 -> Int16 PCM
+                        const buffer = new ArrayBuffer(audio.length * 2);
+                        const view = new DataView(buffer);
+                        for (let i = 0; i < audio.length; i++) {
+                            let s = Math.max(-1, Math.min(1, audio[i]));
+                            view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                        }
+
+                        // Convert to Base64 safely
+                        const bytes = new Uint8Array(buffer);
+                        let binary = '';
+                        const chunkSize = 8192;
+                        for (let i = 0; i < bytes.length; i += chunkSize) {
+                            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+                        }
+                        const audioBase64 = btoa(binary);
+
+                        console.log(`📊 Audio base64 length: ${audioBase64.length} chars`);
+
+                        // Use the new queued processing
+                        await handleAudioProcessing(audioBase64);
+                    },
+
+
+                    // BALANCED - catch normal speech, filter background noise
+
+
+                    positiveSpeechThreshold: 0.8,   // Good for normal speech volume
+                    negativeSpeechThreshold: 0.75,   // Don't stop too quickly
+                    redemptionFrames: 10,            // Moderate pause tolerance
+                    frameSamples: 1536,
+                    preSpeechPadFrames: 1,           // Good padding for word beginnings
+                    minSpeechFrames: 3,              // Allow shorter speech but filter noise
+                    submitUserSpeechOnPause: true
+                });
+
+                console.log(`✅ VAD initialized - BALANCED for normal speech + noise filtering`);
+                console.log(`🔧 VAD Config: pos=0.8, neg=0.7, redemption=10, minFrames=4 + moderate filters`);
+            } catch (error) {
+                console.error(`❌ VAD initialization error:`, error);
+                updateStatus('VAD initialization failed', 'error');
+                updateStatusIndicator('VAD Error', 'error');
+            }
+        }
+
+
+        async function startListening() {
+            console.log('🎙️ Starting voice listening...');
+
+            // Check if user is authenticated
+            if (!authManager.isAuthenticated()) {
+                alert('Please login to use the voice coach feature');
+                return;
+            }
+
+            // 🆕 AGGRESSIVE: Kill TTS IMMEDIATELY
+            if (state.isPlayingAudio) {
+                console.log('🛑 KILLING ALL TTS PLAYBACK');
+                stopAudioPlayback();
+
+                // 🆕 LONGER WAIT for all sources to stop
+                console.log('⏳ Waiting for complete audio shutdown...');
+                await new Promise(resolve => setTimeout(resolve, 1000));  // Full 1 second
+                console.log('✅ Audio fully shut down');
+            }
+
+            if (state.isProcessing) {
+                console.log('🔄 Interrupting current processing');
+                state.isProcessing = false;
+            }
+
+            if (!state.vad) {
+                console.log('🔄 Initializing VAD...');
+                await initializeVAD();
+            }
+
+            try {
+                console.log('📊 Checking audio permissions...');
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log('✅ Microphone access granted');
+                stream.getTracks().forEach(track => track.stop());
+
+                updateStatus('🎤 Starting microphone...', 'processing');
+                updateStatusIndicator('Starting microphone...', 'processing');
+
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                await state.vad.start();
+                state.isListening = true;
+                updateButtons();
+                updateStatus('🎤 Listening... Start speaking when ready', 'listening');
+                updateStatusIndicator('Listening for speech...', 'listening');
+                console.log('✅ VAD listening started successfully');
+
+            } catch (error) {
+                console.error('❌ Start listening failed:', error);
+                updateStatus(`Listening failed: ${error.message}`, 'error');
+                updateStatusIndicator('Listening Error', 'error');
+            }
+        }
+
+        async function stopListening() {
+            console.log('🛑 Stopping voice listening...');
+
+            // Check if user is authenticated
+            if (!authManager.isAuthenticated()) {
+                alert('Please login to use the voice coach feature');
+                return;
+            }
+
+            if (state.vad && state.isListening) {
+                state.vad.pause();
+                state.isListening = false;
+                updateButtons();
+                updateStatus('Listening stopped', 'connected');
+                updateStatusIndicator('Ready to start', 'connected');
+                console.log(`ℹ️ VAD listening stopped`);
+            }
+        }
+
+        async function pauseConversation() {
+            console.log('⏸️ Pausing conversation...');
+
+            // Check if user is authenticated
+            if (!authManager.isAuthenticated()) {
+                alert('Please login to use the voice coach feature');
+                return;
+            }
+
+            // Stop listening
+            if (state.vad && state.isListening) {
+                state.vad.pause();
+                state.isListening = false;
+            }
+
+            // Stop any audio playback
+            if (state.isPlayingAudio) {
+                state.audioQueue = [];
+                state.isPlayingAudio = false;
+                if (state.audioContext) {
+                    try {
+                        await state.audioContext.suspend();
+                    } catch (e) {
+                        console.log('Audio context suspend failed:', e);
+                    }
+                }
+            }
+
+            // Set paused state
+            state.isPaused = true;
+            state.isProcessing = false;
+
+            updateButtons();
+            updateStatus('⏸️ Conversation paused - Click RESUME to continue', 'connected');
+            updateStatusIndicator('Paused - Click resume button', 'connected');
+            console.log('✅ Conversation paused - all microphone and audio stopped');
+        }
+
+        async function resumeConversation() {
+            console.log('▶️ Resuming conversation...');
+
+            // Check if user is authenticated
+            if (!authManager.isAuthenticated()) {
+                alert('Please login to use the voice coach feature');
+                return;
+            }
+
+            state.isPaused = false;
+            updateButtons();
+
+            // Automatically start listening when resuming
+            await startListening();
+            console.log('✅ Conversation resumed');
+        }
+
+        function resetConversation() {
+            // Check if user is authenticated
+            if (!authManager.isAuthenticated()) {
+                alert('Please login to use the voice coach feature');
+                return;
+            }
+
+            if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                state.ws.send(JSON.stringify({
+                    type: "reset_conversation",
+                    personality: state.currentPersonality,
+                    scenario: state.currentScenario,
+                    custom_scenario: state.customScenario
+                }));
+            } else {
+                clearMessages();
+                updateStatus('Conversation reset', 'connected');
+                updateStatusIndicator('Conversation reset', 'connected');
+            }
+            state.isProcessing = false;
+        }
+
+        // ===== CONFIG CONTROLS =====
+        function toggleConfigPanel() {
+            elements.configPanel.classList.toggle('hidden');
+        }
+
+        function applyConfig() {
+            const newPersonality = elements.personalitySelect.value;
+            const newScenario = elements.scenarioSelect.value;
+            const customScenario = elements.customScenarioInput.value.trim();
+
+            if (newScenario === 'custom' && !customScenario) {
+                alert('Please provide custom scenario details');
+                return;
+            }
+
+            state.currentPersonality = newPersonality;
+            state.currentScenario = newScenario;
+            state.customScenario = customScenario;
+
+            if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                state.ws.send(JSON.stringify({
+                    type: "change_config",
+                    personality: newPersonality,
+                    scenario: newScenario,
+                    custom_scenario: customScenario
+                }));
+                clearMessages();
+                updateManagerDisplay();
+                elements.configPanel.classList.add('hidden');
+            }
+        }
+
+        function updateManagerDisplay() {
+            const personality = state.personalities[state.currentPersonality];
+            if (personality) {
+                elements.managerName.textContent = personality.name;
+                elements.managerRole.textContent = personality.title;
+                elements.managerDescription.textContent = personality.description;
+                elements.assistantLabel.textContent = personality.name;
+            }
+        }
+
+        function updateStatusIndicator(message, status) {
+            elements.statusText.textContent = message;
+            elements.statusDot.className = 'status-dot';
+            if (status) {
+                elements.statusDot.classList.add(status);
+            }
+        }
+
+        // ===== HISTORY MANAGEMENT =====
+        function addToHistory(role, text) {
+            const emptyState = elements.historyContainer.querySelector('.empty-history');
+            if (emptyState) emptyState.remove();
+
+            const historyMsg = document.createElement('div');
+            historyMsg.className = `history-msg ${role}-msg`;
+
+            const label = document.createElement('div');
+            label.className = 'msg-label';
+
+            const managerName = state.personalities[state.currentPersonality]?.name || 'Manager';
+            label.innerHTML = role === 'user'
+                ? '<i class="fas fa-user"></i> You'
+                : `<i class="fas fa-user-tie"></i> ${managerName}`;
+
+            const content = document.createElement('div');
+            content.className = 'msg-content';
+            content.textContent = text;
+
+            historyMsg.appendChild(label);
+            historyMsg.appendChild(content);
+            elements.historyContainer.appendChild(historyMsg);
+            elements.historyContainer.scrollTop = elements.historyContainer.scrollHeight;
+        }
+
+        function clearMessages() {
+            elements.responseSpan.textContent = 'Ready to respond...';
+            elements.transcriptSpan.textContent = 'Waiting for your speech...';
+            elements.historyContainer.innerHTML = '<div class="empty-history"><i class="fas fa-comments"></i><p>Your conversation history will appear here</p></div>';
+        }
+
+        function toggleHistory() {
+            state.historyOpen = !state.historyOpen;
+            elements.mainContainer.classList.toggle('history-open', state.historyOpen);
+        }
+
+        // ===== UI UPDATES =====
+        function updateButtons() {
+            const pauseBtn = document.getElementById('pauseBtn');
+
+            if (state.isPaused) {
+                // When paused, disable ALL microphone buttons (start, stop, pause)
+                elements.startBtn.disabled = true;
+                elements.stopBtn.disabled = true;
+                pauseBtn.disabled = true;
+                elements.resetBtn.disabled = false; // Only reset is allowed when paused
+
+                // Change pause button to resume button
+                pauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+                pauseBtn.title = "Resume Conversation";
+                pauseBtn.style.background = "#28a745"; // Green for resume
+                pauseBtn.disabled = false; // Enable resume button
+            } else {
+                // Normal operation
+                elements.startBtn.disabled = state.isListening || !state.conversationActive;
+                elements.stopBtn.disabled = !state.isListening;
+                pauseBtn.disabled = !state.conversationActive;
+                elements.resetBtn.disabled = !state.conversationActive;
+
+                // Reset pause button appearance
+                pauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                pauseBtn.title = "Pause Conversation";
+                pauseBtn.style.background = "#ffc107"; // Yellow for pause
+            }
+
+            // Debug info
+            console.log(`🔘 Button states - Start: ${elements.startBtn.disabled}, Stop: ${elements.stopBtn.disabled}, Pause: ${pauseBtn.disabled}`);
+            console.log(`📊 State - Listening: ${state.isListening}, Processing: ${state.isProcessing}, Paused: ${state.isPaused}, Active: ${state.conversationActive}`);
+        }
+
+        function updateStatus(message, statusClass) {
+            elements.statusBar.textContent = message;
+            elements.statusBar.className = 'status-bar';
+            if (statusClass) {
+                elements.statusBar.classList.add(statusClass);
+            }
+        }
+
+        function showConversationEnded() {
+            elements.responseSpan.textContent = "Thank you for the conversation! I'm here if you need anything else.";
+            updateButtons();
+        }
+
+        // ===== EVENT LISTENERS =====
+        elements.startBtn.addEventListener('click', startListening);
+        elements.stopBtn.addEventListener('click', stopListening);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            if (state.isPaused) {
+                resumeConversation();
+            } else {
+                pauseConversation();
+            }
+        });
+        elements.resetBtn.addEventListener('click', resetConversation);
+        elements.toggleHistoryBtn.addEventListener('click', toggleHistory);
+        elements.expandHistoryBtn.addEventListener('click', toggleHistory);
+        elements.toggleConfigBtn.addEventListener('click', toggleConfigPanel);
+        elements.applyConfigBtn.addEventListener('click', applyConfig);
+
+
+        elements.scenarioSelect.addEventListener('change', (e) => {
+            const selected = e.target.value;
+
+            if (selected === 'custom') {
+                elements.customScenarioGroup.style.display = 'block';
+                document.getElementById('scenarioContextBox').innerHTML =
+                    `<p>You can describe your own scenario below.</p>`;
+                return;
+            } else {
+                elements.customScenarioGroup.style.display = 'none';
+            }
+
+            // Get context from known scenarios
+            const box = document.getElementById('scenarioContextBox');
+            box.innerHTML = scenarioData[selected]
+                ? `<p>${scenarioData[selected]}</p>`
+                : `<p>No context available for this scenario.</p>`;
+        });
+
+
+        // ===== INITIALIZATION =====
+        console.log(`🚀 Initializing client: ${state.clientId}`);
+        if (typeof authManager === 'undefined') {
+            console.error('❌ authManager not loaded!');
+            updateStatus('Auth system failed to load', 'error');
+        } else {
+            console.log('✅ authManager loaded successfully');
+
+            // Connect WebSocket after authManager is ready
+            connectWebSocket();
+        }
+        // Initialize authentication
+        initializeAuth();
+
+        // Check browser capabilities
+        console.log('🔍 Checking browser capabilities...');
+        console.log('MediaRecorder supported:', typeof MediaRecorder !== 'undefined');
+        console.log('getUserMedia supported:', navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        console.log('WebSocket supported:', typeof WebSocket !== 'undefined');
+
+        if (typeof vad === 'undefined') {
+            console.error('❌ VAD library not loaded');
+            updateStatus('VAD library not loaded - please refresh', 'error');
+            updateStatusIndicator('VAD Not Loaded', 'error');
+        } else if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('❌ getUserMedia not supported in this browser');
+            updateStatus('Microphone access not supported in this browser', 'error');
+            updateStatusIndicator('Microphone Not Supported', 'error');
+        } else {
+            console.log('✅ All required APIs supported');
+            connectWebSocket();
+        }
+
+        updateButtons();
+        // Default on page load
+        window.addEventListener("DOMContentLoaded", () => {
+            const scenarioSelect = document.getElementById("scenarioSelect");
+            const contextBox = document.getElementById("scenarioContextBox");
+            if (contextBox && scenarioSelect) {
+                const selected = scenarioSelect.value;
+                contextBox.innerHTML = scenarioData[selected] ? `<p>${scenarioData[selected]}</p>` : `<p>Select a scenario to view its context here...</p>`;
+            }
+        });
+
+        // On change
+        document.getElementById("scenarioSelect").addEventListener("change", (e) => {
+            const contextBox = document.getElementById("scenarioContextBox");
+            if (contextBox) {
+                const selectedScenario = e.target.value;
+                contextBox.innerHTML = scenarioData[selectedScenario] ? `<p>${scenarioData[selectedScenario]}</p>` : `<p>Select a scenario to view its context here...</p>`;
+            }
+        });
+        function updateScenarioContext(selectId, boxId, data) {
+            const select = document.getElementById(selectId);
+            const box = document.getElementById(boxId);
+            const setContext = () => {
+                const key = select.value;
+                box.innerText = data[key] || "Select a scenario to view its context here...";
+            };
+            select.addEventListener("change", setContext);
+            window.addEventListener("DOMContentLoaded", setContext);
+        }
+        updateScenarioContext("scenarioSelect", "scenarioContextBox", scenarioData);
+
+        const endCallBtn = document.getElementById("endCallBtn");
+
+        endCallBtn.addEventListener("click", async () => {
+            // Check if user is authenticated
+            if (!authManager.isAuthenticated()) {
+                alert('Please login to use the voice coach feature');
+                return;
+            }
+
+            if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                state.ws.send(JSON.stringify({ type: "end_call" }));
+                state.ws.close(1000, "Call ended by user");
+            }
+
+            // Stop audio input/output
+            if (state.mediaStream) {
+                state.mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (state.audioContext) {
+                state.audioContext.close();
+            }
+
+            const res = await fetch("/feedback_summary", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ client_id: state.clientId })
+            });
+            const data = await res.json();
+
+            // Create a proper modal for feedback display
+            showFeedbackModal(data.feedback);
+
+            function showFeedbackModal(feedback) {
+                // Create modal element
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  `;
+
+                const modalContent = document.createElement('div');
+                modalContent.style.cssText = `
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  `;
+
+                let content = '<h2>🧠 Conversation Feedback</h2>';
+
+                if (typeof feedback === 'object') {
+                    // Overall score
+                    if (feedback.overall_score !== undefined) {
+                        content += `<p><strong>Overall Score: ${feedback.overall_score}/100</strong></p>`;
+                    }
+
+                    // Summary information
+                    if (feedback.summary) {
+                        content += `<p><strong>Conversation Summary:</strong><br>`;
+                        content += `• Scenario: ${feedback.summary.scenario}<br>`;
+                        content += `• Total Exchanges: ${feedback.summary.total_exchanges}<br>`;
+                        content += `• Your Words Spoken: ${feedback.summary.total_words_spoken}<br>`;
+                        content += `• Duration: ${feedback.summary.duration_minutes} minutes</p>`;
+                    }
+
+                    // Strengths
+                    if (feedback.strengths && feedback.strengths.length > 0) {
+                        content += `<p><strong>✅ Strengths:</strong><br>• ${feedback.strengths.join('<br>• ')}</p>`;
+                    }
+
+                    // Areas for improvement
+                    if (feedback.areas_for_improvement && feedback.areas_for_improvement.length > 0) {
+                        content += `<p><strong>🎯 Areas for Improvement:</strong><br>• ${feedback.areas_for_improvement.join('<br>• ')}</p>`;
+                    }
+
+                    // Communication quality
+                    if (feedback.communication_quality) {
+                        content += `<p><strong>💬 Communication Quality:</strong><br>`;
+                        content += `• ${feedback.communication_quality.length_rating}<br>`;
+                        content += `• ${feedback.communication_quality.length_note}</p>`;
+                    }
+
+                    // Speaking pace
+                    if (feedback.speaking_pace_analysis) {
+                        content += `<p><strong>🎤 Speaking Pace:</strong><br>`;
+                        content += `• ${feedback.speaking_pace_analysis.rating}<br>`;
+                        content += `• ${feedback.speaking_pace_analysis.note}</p>`;
+                    }
+
+                    // Filler words
+                    if (feedback.filler_words_analysis) {
+                        content += `<p><strong>🗣️ Filler Words:</strong><br>`;
+                        content += `• ${feedback.filler_words_analysis.rating}<br>`;
+                        content += `• Filler Word Percentage: ${feedback.filler_words_analysis.filler_percentage}%</p>`;
+                    }
+
+                    // Rephrase suggestions from advanced analysis
+                    if (feedback.advanced_analysis && feedback.advanced_analysis.rephrase_suggestions) {
+                        const suggestions = feedback.advanced_analysis.rephrase_suggestions.rephrases;
+                        if (suggestions && suggestions.length > 0) {
+                            content += `<p><strong>💡 Rephrase Suggestions:</strong></p>`;
+                            suggestions.forEach((suggestion, index) => {
+                                content += `<p><strong>${index + 1}. "${suggestion.original}" → "${suggestion.improved}"</strong><br>`;
+                                content += `<em>Reason:</em> ${suggestion.reason}</p>`;
+                            });
+                        }
+                    }
+
+                    // Advanced scores breakdown
+                    if (feedback.advanced_analysis) {
+                        content += `<p><strong>📈 Detailed Analysis Scores:</strong><br>`;
+                        if (feedback.advanced_analysis.grammar_analysis) {
+                            content += `• Grammar: ${feedback.advanced_analysis.grammar_analysis.score}/100<br>`;
+                        }
+                        if (feedback.advanced_analysis.vocabulary_analysis) {
+                            content += `• Vocabulary: ${feedback.advanced_analysis.vocabulary_analysis.richness_score}/100<br>`;
+                        }
+                        if (feedback.advanced_analysis.empathy_analysis) {
+                            content += `• Empathy: ${feedback.advanced_analysis.empathy_analysis.score}/100<br>`;
+                        }
+                        if (feedback.advanced_analysis.politeness_analysis) {
+                            content += `• Politeness: ${feedback.advanced_analysis.politeness_analysis.score}/100</p>`;
+                        }
+                    }
+
+                } else {
+                    // Fallback if feedback is not an object
+                    content += `<p>${feedback}</p>`;
+                }
+
+                content += '<button onclick="this.parentElement.parentElement.remove()" style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Close Feedback</button>';
+
+                modalContent.innerHTML = content;
+                modal.appendChild(modalContent);
+                document.body.appendChild(modal);
+
+                // Close modal when clicking outside
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            }
+
+        });
+
+    </script>
+</body>
+
+</html>

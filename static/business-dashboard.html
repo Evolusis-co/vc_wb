@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Dashboard - Voice AI Coach</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        
+        :root {
+            --primary: #4361ee;
+            --secondary: #7209b7;
+            --success: #06d6a0;
+            --danger: #ef476f;
+            --dark: #1a1d2e;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --gray-light: #e9ecef;
+        }
+        
+        body {
+            background: var(--light);
+            color: var(--dark);
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, #1a1d2e, #2d3748);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar h1 {
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .stat-card i {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card h3 {
+            font-size: 14px;
+            color: var(--gray);
+            margin-bottom: 8px;
+        }
+        
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--dark);
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .card-header h2 {
+            font-size: 20px;
+            color: var(--dark);
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th {
+            text-align: left;
+            padding: 12px;
+            background: var(--light);
+            font-weight: 600;
+            color: var(--dark);
+            border-bottom: 2px solid var(--gray-light);
+        }
+        
+        .table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--gray-light);
+        }
+        
+        .table tr:hover {
+            background: var(--light);
+        }
+        
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: rgba(6, 214, 160, 0.15);
+            color: var(--success);
+        }
+        
+        .badge-danger {
+            background: rgba(239, 71, 111, 0.15);
+            color: var(--danger);
+        }
+        
+        .badge-primary {
+            background: rgba(67, 97, 238, 0.15);
+            color: var(--primary);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h2 {
+            font-size: 24px;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--gray);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--gray-light);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray);
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <h1>
+            <i class="fas fa-building"></i>
+            <span id="companyName">Business Dashboard</span>
+        </h1>
+        <div class="navbar-right">
+            <span id="adminName">Admin</span>
+            <button class="btn btn-danger" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card">
+                <i class="fas fa-users" style="color: var(--primary);"></i>
+                <h3>Total Employees</h3>
+                <div class="value" id="totalUsers">0</div>
+            </div>
+            
+            <div class="stat-card">
+                <i class="fas fa-user-check" style="color: var(--success);"></i>
+                <h3>Active Users</h3>
+                <div class="value" id="activeUsers">0</div>
+            </div>
+            
+            <!-- <div class="stat-card">
+                <i class="fas fa-chart-line" style="color: var(--secondary);"></i>
+                <h3>Total Sessions</h3>
+                <div class="value" id="totalSessions">0</div>
+            </div> -->
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-users"></i> Team Members</h2>
+                <button class="btn btn-success" onclick="showAddUserModal()">
+                    <i class="fas fa-user-plus"></i>
+                    Add Employee
+                </button>
+            </div>
+            
+            <div id="usersTableContainer">
+                <table class="table" id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <i class="fas fa-users"></i>
+                                    <p>No employees yet. Add your first team member!</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add User Modal -->
+    <div class="modal" id="addUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Employee</h2>
+                <button class="close-btn" onclick="closeAddUserModal()">&times;</button>
+            </div>
+            
+            <form id="addUserForm">
+                <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" class="form-input" id="userName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-input" id="userEmail" required placeholder="employee@yourdomain.com">
+                    <small id="emailHint" style="color: var(--gray); font-size: 12px; margin-top: 4px; display: block;"></small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="userPassword" required minlength="8">
+                    <small style="color: var(--gray); font-size: 12px; margin-top: 4px; display: block;">
+                        8+ chars with uppercase, lowercase, number, and special character
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select class="form-input" id="userRole">
+                        <option value="b2b_employee">Employee</option>
+                        <option value="b2b_admin">Admin</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn btn-success" style="width: 100%;">
+                    <i class="fas fa-user-plus"></i>
+                    Add Employee
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        let companyData = null;
+        let users = [];
+        
+        async function loadDashboard() {
+            try {
+                const response = await authManager.makeAuthenticatedRequest('/auth/business-dashboard');
+                companyData = response;
+                
+                document.getElementById('companyName').textContent = companyData.company.name;
+                document.getElementById('adminName').textContent = companyData.user.name;
+                document.getElementById('totalUsers').textContent = companyData.users.length;
+                document.getElementById('activeUsers').textContent = companyData.users.filter(u => u.trial_status === 'active').length;
+                
+                // Extract and show company domain
+                const companyEmail = companyData.company.contact_email;
+                const companyDomain = companyEmail.split('@')[1];
+                document.getElementById('emailHint').textContent = `Must use company domain: @${companyDomain}`;
+                
+                users = companyData.users;
+                renderUsersTable();
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+                alert('Failed to load dashboard. Please login again.');
+                window.location.href = '/login.html';
+            }
+        }
+        
+        function renderUsersTable() {
+            const tbody = document.getElementById('usersTableBody');
+            
+            if (users.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state">
+                                <i class="fas fa-users"></i>
+                                <p>No employees yet. Add your first team member!</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td>${user.name}</td>
+                    <td>${user.email}</td>
+                    <td>
+                        <span class="badge ${user.user_type === 'b2b_admin' ? 'badge-primary' : 'badge-success'}">
+                            ${user.user_type === 'b2b_admin' ? 'Admin' : 'Employee'}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge ${user.trial_status === 'active' ? 'badge-success' : 'badge-danger'}">
+                            ${user.trial_status}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-danger" onclick="deleteUser(${user.user_id})" style="padding: 6px 12px; font-size: 12px;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function showAddUserModal() {
+            document.getElementById('addUserModal').classList.add('show');
+        }
+        
+        function closeAddUserModal() {
+            document.getElementById('addUserModal').classList.remove('show');
+            document.getElementById('addUserForm').reset();
+        }
+        
+        // Password validation function
+        function validatePassword(password) {
+            const errors = [];
+            
+            if (password.length < 8) {
+                errors.push('• At least 8 characters');
+            }
+            if (!/[A-Z]/.test(password)) {
+                errors.push('• One uppercase letter');
+            }
+            if (!/[a-z]/.test(password)) {
+                errors.push('• One lowercase letter');
+            }
+            if (!/\d/.test(password)) {
+                errors.push('• One number');
+            }
+            if (!/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/;~`]/.test(password)) {
+                errors.push('• One special character');
+            }
+            
+            return errors;
+        }
+
+        document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('userName').value;
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+            const role = document.getElementById('userRole').value;
+            
+            // Validate password strength
+            const passwordErrors = validatePassword(password);
+            if (passwordErrors.length > 0) {
+                alert('Password must have:\n' + passwordErrors.join('\n'));
+                return;
+            }
+            
+            // Validate email domain
+            const companyEmail = companyData.company.contact_email;
+            const companyDomain = companyEmail.split('@')[1];
+            const emailDomain = email.split('@')[1];
+            
+            if (emailDomain !== companyDomain) {
+                alert(`Email must use company domain: @${companyDomain}`);
+                return;
+            }
+            
+            try {
+                const response = await fetch('/auth/add-business-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authManager.getToken()}`
+                    },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        password,
+                        user_type: role
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('Employee added successfully!');
+                    closeAddUserModal();
+                    loadDashboard();
+                } else {
+                    // Extract error message properly
+                    let errorMsg = 'Failed to add employee';
+                    if (data.detail) {
+                        errorMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                    }
+                    alert(errorMsg);
+                }
+            } catch (error) {
+                console.error('Failed to add user:', error);
+                alert('Failed to add employee. Please try again.');
+            }
+        });
+        
+        async function deleteUser(userId) {
+            if (!confirm('Are you sure you want to delete this employee?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/auth/delete-business-user/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authManager.getToken()}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('Employee deleted successfully!');
+                    loadDashboard();
+                } else {
+                    // Extract error message properly
+                    let errorMsg = 'Failed to delete employee';
+                    if (data.detail) {
+                        errorMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                    }
+                    alert(errorMsg);
+                }
+            } catch (error) {
+                console.error('Failed to delete user:', error);
+                alert('Failed to delete employee. Please try again.');
+            }
+        }
+        
+        function logout() {
+            authManager.logout();
+        }
+        
+        // Check authentication and load dashboard
+        authManager.checkAuthStatus().then(() => {
+            if (!authManager.isAuthenticated()) {
+                window.location.href = '/login.html';
+            } else {
+                loadDashboard();
+            }
+        });
+    </script>
+</body>
+</html>
