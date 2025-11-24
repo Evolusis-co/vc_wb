@@ -77,14 +77,14 @@ services:
 # Shared PostgreSQL Database for VoiceCoach
 databases:
   - name: voicecoach-db
-    plan: starter
+    plan: free
     databaseName: voicecoach
     user: voicecoach_user
     region: oregon
 
   # Separate Database for Chatbot (optional - can share if needed)
   - name: chatbot-db
-    plan: starter
+    plan: free
     databaseName: chatbot
     user: chatbot_user
     region: oregon
