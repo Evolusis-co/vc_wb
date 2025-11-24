@@ -2,77 +2,7 @@
 # This file defines both VoiceCoach and Web Chatbot services
 # Deploy with: render deploy
 
-services:
-  # VoiceCoach FastAPI Service (Main Voice Coach Application)
-  - type: web
-    name: voicecoach-api
-    runtime: python
-    region: oregon
-    plan: starter
-    branch: main
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: ENVIRONMENT
-        value: production
-      - key: SECRET_KEY
-        generateValue: true
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: ELEVENLABS_API_KEY
-        sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: voicecoach-db
-          property: connectionString
-      - key: ALLOWED_ORIGINS
-        value: https://voicecoach-web.onrender.com,https://voicecoach-api.onrender.com
-      - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: 1440
-      - key: ENABLE_RABBITMQ
-        value: false
-      - key: ENABLE_VAD
-        value: true
-      - key: ENABLE_AUGMENTATION
-        value: true
 
-  # Web Chatbot Flask Service (Workplace Communication Coach)
-  - type: web
-    name: voicecoach-chatbot
-    runtime: python
-    region: oregon
-    plan: starter
-    branch: main
-    rootDir: web_chatbot-main
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT --timeout 120 app:app
-    healthCheckPath: /health
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: FLASK_ENV
-        value: production
-      - key: FLASK_SECRET_KEY
-        generateValue: true
-      - key: JWT_SECRET_KEY
-        generateValue: true
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: QDRANT_URL
-        sync: false
-      - key: QDRANT_API_KEY
-        sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: chatbot-db
-          property: connectionString
-      - key: CORS_ORIGINS
-        value: https://voicecoach-web.onrender.com,https://voicecoach-chatbot.onrender.com
-      - key: AUTH_SERVICE_URL
-        value: https://voicecoach-api.onrender.com
 
 # Shared PostgreSQL Database for VoiceCoach
 databases:
